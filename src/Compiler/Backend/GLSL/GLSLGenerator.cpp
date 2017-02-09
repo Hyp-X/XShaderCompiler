@@ -56,16 +56,16 @@ void GLSLGenerator::GenerateCodePrimary(
     /* Store parameters */
     versionOut_         = outputDesc.shaderVersion;
     nameManglingPrefix_ = outputDesc.nameManglingPrefix;
+
     allowExtensions_    = outputDesc.options.allowExtensions;
     explicitBinding_    = outputDesc.options.explicitBinding;
     preserveComments_   = outputDesc.options.preserveComments;
     allowLineMarks_     = outputDesc.formatting.lineMarks;
     compactWrappers_    = outputDesc.formatting.compactWrappers;
     alwaysBracedScopes_ = outputDesc.formatting.alwaysBracedScopes;
-    for (const auto& s : outputDesc.options.vertexShaderInputSemanticMapping)
-    {
-        vertexShaderInputSemanticMapping_.insert(std::pair<CiString, int>(ToCiString(s.first), s.second));
-    }
+
+    for (const auto& s : outputDesc.vertexSemantics)
+        vertexSemanticsMap_[ToCiString(s.semantic)] = { s.location, 0 };
 
     if (program.entryPointRef)
     {
@@ -102,6 +102,9 @@ void GLSLGenerator::GenerateCodePrimary(
 
             /* Visit program AST */
             Visit(&program);
+
+            /* Check for optional warning feedback */
+            ReportOptionalFeedback();
         }
         catch (const Report& e)
         {
@@ -201,6 +204,37 @@ bool GLSLGenerator::IsTypeCompatibleWithSemantic(const Semantic semantic, const 
         return true;
     }
     return false;
+}
+
+void GLSLGenerator::ReportOptionalFeedback()
+{
+    /* Report warnings for unused and overwritten vertex semantic bindings */
+    if (explicitBinding_ && IsVertexShader())
+    {
+        /* Check for vertex semantics that have not been found */
+        std::map<int, int> locationUseCount;
+
+        for (const auto& vertSemantic : vertexSemanticsMap_)
+        {
+            const auto& sem = vertSemantic.second;
+            if (sem.found)
+                ++locationUseCount[sem.location];
+            else
+                Warning("vertex semantic '" + ToString(vertSemantic.first) + "' specified but not found");
+        }
+
+        /* Check for multiple usages of vertex semantic locations */
+        for (const auto& loc : locationUseCount)
+        {
+            if (loc.second > 1)
+            {
+                Warning(
+                    "multiple usage of vertex semantic location (" + std::to_string(loc.first) +
+                    ") (used " + std::to_string(loc.second) + " times)"
+                );
+            }
+        }
+    }
 }
 
 /* ------- Visit functions ------- */
@@ -1207,14 +1241,17 @@ void GLSLGenerator::WriteGlobalInputSemanticsVarDecl(VarDecl* varDecl)
 
             if (explicitBinding_ && IsVertexShader() && varDecl->semantic.IsValid())
             {
-                auto it = vertexShaderInputSemanticMapping_.find(ToCiString(varDecl->semantic.ToString()));
-                if (it != vertexShaderInputSemanticMapping_.end())
-                    Write("layout(location = " + std::to_string(it->second) + ") in ");
-                else
-                    Write("in ");
+                auto it = vertexSemanticsMap_.find(ToCiString(varDecl->semantic.ToString()));
+                if (it != vertexSemanticsMap_.end())
+                {
+                    /* Write layout location and increment use count for warning-feedback */
+                    Write("layout(location = " + std::to_string(it->second.location) + ") ");
+                    it->second.found = true;
+                }
             }
-            else
-                Write("in ");
+
+            Separator();
+            Write("in ");
             Separator();
         }
 

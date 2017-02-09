@@ -29,6 +29,9 @@
 [SemanticTest2 PS]
 -Vout GLSL120 -T frag -E PS -o output/* SemanticTest2.hlsl
 
+[SemanticTest4 VS (Vertex-Attrib-Layouts)]
+-W -T vert -E VS -EB -Scoord=0 -Stexcoord0=1 -Stexcoord1=2 -Snormal=3 -o output/* SemanticTest4.hlsl
+
 #['clip'-Intrinsic PS]
 #-T frag -E PS -o output/* IntrinsicClip.hlsl
 
@@ -95,8 +98,11 @@
 #[TypeTest2 VS]
 #-T vert -E VS -o output/* TypeTest2.hlsl
 
-#[FloatTest1 VS]
-#-T vert -E VS -o output/* FloatTest1.hlsl
+[FloatTest1 VS]
+-T vert -E VS -o output/* FloatTest1.hlsl
+
+[FloatTest2 VS]
+-T vert -E VS -o output/* FloatTest2.hlsl
 
 #[FunctionDeclTest1 VS]
 #-T vert -E VS -o output/* FunctionDeclTest1.hlsl

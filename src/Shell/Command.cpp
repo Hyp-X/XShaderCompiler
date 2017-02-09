@@ -458,43 +458,38 @@ void MacroCommand::Run(CommandLine& cmdLine, ShellState& state)
 
 
 /*
-* VertexShaderInputSemanticsCommand class
-*/
+ * SemanticCommand class
+ */
 
-std::vector<Command::Identifier> VertexShaderInputSemanticsCommand::Idents() const
+std::vector<Command::Identifier> SemanticCommand::Idents() const
 {
-    return{ { "-S", true } };
+    return { { "-S", true } };
 }
 
-HelpDescriptor VertexShaderInputSemanticsCommand::Help() const
+HelpDescriptor SemanticCommand::Help() const
 {
     return
     {
         "-S<IDENT>=VALUE",
-        "Adds the vertex input semantic <IDENT> binding to VALUE"
+        "Adds the vertex semantic <IDENT> binding to VALUE (Requires -EB)"
     };
 }
 
-void VertexShaderInputSemanticsCommand::Run(CommandLine& cmdLine, ShellState& state)
+void SemanticCommand::Run(CommandLine& cmdLine, ShellState& state)
 {
     auto arg = cmdLine.Accept();
 
     auto pos = arg.find('=');
     if (pos != std::string::npos && pos + 1 < arg.size())
     {
-        auto semantic = arg.substr(0, pos);
+        /* Get semantic name and location index */
+        auto ident = arg.substr(0, pos);
         auto value = arg.substr(pos + 1);
-        char *end;
-        long valueLong = std::strtol(value.c_str(), &end, 10);
-        if (*end == 0 && errno != ERANGE)
-        {
-            state.outputDesc.options.vertexShaderInputSemanticMapping.push_back(std::pair<std::string, int>(semantic, valueLong));
-        }
-        else
-            throw std::runtime_error("vertex input semantic value is invalid \"" + arg + "\"");
+        auto locIndex = std::atoi(value.c_str());
+        state.outputDesc.vertexSemantics.push_back({ ident, locIndex });
     }
     else
-        throw std::runtime_error("vertex input semantic value expected for \"" + arg + "\"");
+        throw std::runtime_error("vertex attribute value expected for \"" + arg + "\"");
 }
 
 

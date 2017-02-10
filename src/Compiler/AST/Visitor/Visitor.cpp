@@ -69,7 +69,7 @@ IMPLEMENT_VISIT_PROC(ArrayDimension)
     Visit(ast->expr);
 }
 
-IMPLEMENT_VISIT_PROC(TypeName)
+IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     Visit(ast->structDecl);
 }
@@ -152,7 +152,7 @@ IMPLEMENT_VISIT_PROC(StructDeclStmnt)
 IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 {
     Visit(ast->attribs);
-    Visit(ast->varType);
+    Visit(ast->typeSpecifier);
     Visit(ast->varDecls);
 }
 
@@ -255,9 +255,9 @@ IMPLEMENT_VISIT_PROC(LiteralExpr)
     // do nothing
 }
 
-IMPLEMENT_VISIT_PROC(TypeNameExpr)
+IMPLEMENT_VISIT_PROC(TypeSpecifierExpr)
 {
-    Visit(ast->typeName);
+    Visit(ast->typeSpecifier);
 }
 
 IMPLEMENT_VISIT_PROC(TernaryExpr)
@@ -307,7 +307,7 @@ IMPLEMENT_VISIT_PROC(ArrayAccessExpr)
 
 IMPLEMENT_VISIT_PROC(CastExpr)
 {
-    Visit(ast->typeExpr);
+    Visit(ast->typeSpecifier);
     Visit(ast->expr);
 }
 

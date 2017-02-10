@@ -88,7 +88,7 @@ struct AST
         Register,
         PackOffset,
         ArrayDimension,
-        TypeName,
+        TypeSpecifier,
         VarIdent,
 
         VarDecl,
@@ -120,7 +120,7 @@ struct AST
         NullExpr,
         ListExpr,
         LiteralExpr,
-        TypeNameExpr,
+        TypeSpecifierExpr,
         TernaryExpr,
         BinaryExpr,
         UnaryExpr,
@@ -153,6 +153,7 @@ struct AST
     {
         FLAG( isReachable, 30 ), // This AST node is reachable from the main entry point.
         FLAG( isDeadCode,  29 ), // This AST node is dead code (after return path).
+        FLAG( isBuildIn,   28 ), // This AST node is a build-in node (not part of the actual program source).
     };
 
     // Returns this AST node as the specified sub class if this AST node has the correct type. Otherwise, null is returned.
@@ -390,12 +391,12 @@ struct ArrayDimension : public TypedAST
     int     size    = 0;    // Evaluated array dimension size. Zero for dynamic array dimension.
 };
 
-// Type name with optional structure declaration.
-struct TypeName : public TypedAST
+// Type specifier with optional structure declaration.
+struct TypeSpecifier : public TypedAST
 {
-    AST_INTERFACE(TypeName);
+    AST_INTERFACE(TypeSpecifier);
     
-    // Returns the name of this type (either 'baseType' or 'structDecl->name').
+    // Returns the name of this type: typeDenoter->ToString().
     std::string ToString() const;
 
     TypeDenoterPtr DeriveTypeDenoter() override;
@@ -646,7 +647,7 @@ struct FunctionDecl : public Stmnt
     // Sets the specified function AST node as the implementation of this forward declaration.
     void SetFuncImplRef(FunctionDecl* funcDecl);
 
-    TypeNamePtr                     returnType;
+    TypeSpecifierPtr                returnType;
     std::string                     ident;
     std::vector<VarDeclStmntPtr>    parameters;
     IndexedSemantic                 semantic            = Semantic::Undefined;  // May be undefined
@@ -747,7 +748,7 @@ struct VarDeclStmnt : public Stmnt
     std::set<TypeModifier>      typeModifiers;                              // Type modifiers, e.g. const, row_major, column_major (also 'snorm' and 'unorm' for floats)
     PrimitiveType               primitiveType   = PrimitiveType::Undefined; // Primitive type for geometry entry pointer parameters
 
-    TypeNamePtr                 varType;
+    TypeSpecifierPtr            typeSpecifier;
     std::vector<VarDeclPtr>     varDecls;
 };
 
@@ -903,13 +904,13 @@ struct LiteralExpr : public Expr
 };
 
 // Type name expression (used for simpler cast-expression parsing).
-struct TypeNameExpr : public Expr
+struct TypeSpecifierExpr : public Expr
 {
-    AST_INTERFACE(TypeNameExpr);
+    AST_INTERFACE(TypeSpecifierExpr);
 
     TypeDenoterPtr DeriveTypeDenoter() override;
 
-    TypeNamePtr typeName;
+    TypeSpecifierPtr typeSpecifier;
 };
 
 // Ternary expression.
@@ -1009,8 +1010,8 @@ struct CastExpr : public Expr
 
     TypeDenoterPtr DeriveTypeDenoter() override;
 
-    TypeNameExprPtr typeExpr;   // Cast type name expression
-    ExprPtr         expr;       // Value expression
+    TypeSpecifierPtr    typeSpecifier;  // Cast type name expression
+    ExprPtr             expr;           // Value expression
 };
 
 // Variable access expression.

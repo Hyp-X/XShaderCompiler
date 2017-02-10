@@ -37,7 +37,7 @@ DECL_PTR( SamplerValue      );
 DECL_PTR( Register          );
 DECL_PTR( PackOffset        );
 DECL_PTR( ArrayDimension    );
-DECL_PTR( TypeName          );
+DECL_PTR( TypeSpecifier     );
 DECL_PTR( VarIdent          );
 
 DECL_PTR( VarDecl           );
@@ -69,7 +69,7 @@ DECL_PTR( CtrlTransferStmnt );
 DECL_PTR( NullExpr          );
 DECL_PTR( ListExpr          );
 DECL_PTR( LiteralExpr       );
-DECL_PTR( TypeNameExpr      );
+DECL_PTR( TypeSpecifierExpr );
 DECL_PTR( TernaryExpr       );
 DECL_PTR( BinaryExpr        );
 DECL_PTR( UnaryExpr         );
@@ -111,7 +111,7 @@ class Visitor
         VISITOR_VISIT_PROC( Register          );
         VISITOR_VISIT_PROC( PackOffset        );
         VISITOR_VISIT_PROC( ArrayDimension    );
-        VISITOR_VISIT_PROC( TypeName          );
+        VISITOR_VISIT_PROC( TypeSpecifier     );
         VISITOR_VISIT_PROC( VarIdent          );
 
         VISITOR_VISIT_PROC( VarDecl           );
@@ -143,7 +143,7 @@ class Visitor
         VISITOR_VISIT_PROC( NullExpr          );
         VISITOR_VISIT_PROC( ListExpr          );
         VISITOR_VISIT_PROC( LiteralExpr       );
-        VISITOR_VISIT_PROC( TypeNameExpr      );
+        VISITOR_VISIT_PROC( TypeSpecifierExpr );
         VISITOR_VISIT_PROC( TernaryExpr       );
         VISITOR_VISIT_PROC( BinaryExpr        );
         VISITOR_VISIT_PROC( UnaryExpr         );

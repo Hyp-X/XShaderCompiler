@@ -140,9 +140,9 @@ CastExprPtr MakeCastExpr(const TypeDenoterPtr& typeDenoter, const ExprPtr& value
 {
     auto ast = MakeAST<CastExpr>();
     {
-        ast->typeExpr           = MakeAST<TypeNameExpr>();
-        ast->typeExpr->typeName = MakeTypeName(typeDenoter);
-        ast->expr               = valueExpr;
+        ast->typeSpecifier          = MakeTypeSpecifier(typeDenoter);
+        ast->typeSpecifier->area    = valueExpr->area;
+        ast->expr                   = valueExpr;
     }
     return ast;
 }
@@ -210,35 +210,36 @@ AliasDeclStmntPtr MakeBaseTypeAlias(const DataType dataType, const std::string& 
     return ast;
 }
 
-TypeNamePtr MakeTypeName(const StructDeclPtr& structDecl)
+TypeSpecifierPtr MakeTypeSpecifier(const StructDeclPtr& structDecl)
 {
-    auto ast = MakeAST<TypeName>();
+    auto ast = MakeAST<TypeSpecifier>();
     {
         ast->structDecl     = structDecl;
         ast->typeDenoter    = std::make_shared<StructTypeDenoter>(structDecl.get());
     }
+    ast->area = ast->structDecl->area;
     return ast;
 }
 
-TypeNamePtr MakeTypeName(const TypeDenoterPtr& typeDenoter)
+TypeSpecifierPtr MakeTypeSpecifier(const TypeDenoterPtr& typeDenoter)
 {
-    auto ast = MakeAST<TypeName>();
+    auto ast = MakeAST<TypeSpecifier>();
     {
         ast->typeDenoter = typeDenoter;
     }
     return ast;
 }
 
-TypeNamePtr MakeTypeName(const DataType dataType)
+TypeSpecifierPtr MakeTypeSpecifier(const DataType dataType)
 {
-    return MakeTypeName(MakeShared<BaseTypeDenoter>(dataType));
+    return MakeTypeSpecifier(MakeShared<BaseTypeDenoter>(dataType));
 }
 
 VarDeclStmntPtr MakeVarDeclStmnt(const DataType dataType, const std::string& ident)
 {
     auto ast = MakeAST<VarDeclStmnt>();
     {
-        ast->varType = MakeTypeName(dataType);
+        ast->typeSpecifier = MakeTypeSpecifier(dataType);
 
         auto varDecl = MakeAST<VarDecl>();
         {
@@ -382,9 +383,9 @@ ExprPtr ConvertExprBaseType(const DataType dataType, const ExprPtr& subExpr)
         /* Make new cast expression */
         auto ast = MakeShared<CastExpr>(subExpr->area);
         {
-            ast->typeExpr           = MakeAST<TypeNameExpr>();
-            ast->typeExpr->typeName = MakeTypeName(MakeShared<BaseTypeDenoter>(dataType));
-            ast->expr               = subExpr;
+            ast->typeSpecifier          = MakeTypeSpecifier(MakeShared<BaseTypeDenoter>(dataType));
+            ast->typeSpecifier->area    = subExpr->area;
+            ast->expr                   = subExpr;
         }
         return ast;
     }

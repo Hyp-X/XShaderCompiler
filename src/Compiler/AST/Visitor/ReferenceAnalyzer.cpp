@@ -161,12 +161,12 @@ IMPLEMENT_VISIT_PROC(SwitchCase)
     VisitStmntList(ast->stmnts);
 }
 
-IMPLEMENT_VISIT_PROC(TypeName)
+IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     if (Reachable(ast))
     {
         Visit(ast->typeDenoter->SymbolRef());
-        VISIT_DEFAULT(TypeName);
+        VISIT_DEFAULT(TypeSpecifier);
     }
 }
 
@@ -191,7 +191,7 @@ IMPLEMENT_VISIT_PROC(VarDecl)
             auto declStmnt = ast->declStmntRef;
 
             /* Has this variable statement a struct type? */
-            auto typeDen = declStmnt->varType->GetTypeDenoter()->Get();
+            auto typeDen = declStmnt->typeSpecifier->GetTypeDenoter()->Get();
             if (auto structTypeDen = typeDen->As<StructTypeDenoter>())
             {
                 if (auto structDecl = structTypeDen->structDeclRef)

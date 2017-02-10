@@ -160,7 +160,7 @@ IMPLEMENT_VISIT_PROC(ArrayDimension)
     }
 }
 
-IMPLEMENT_VISIT_PROC(TypeName)
+IMPLEMENT_VISIT_PROC(TypeSpecifier)
 {
     Visit(ast->structDecl);
 
@@ -269,7 +269,9 @@ IMPLEMENT_VISIT_PROC(FunctionDecl)
 
     OpenScope();
     {
-        Visit(ast->parameters);
+        /* Analyze parameters (especially their types) */
+        for (auto& param : ast->parameters)
+            AnalyzeParameter(param.get());
 
         /* Special case for the main entry point */
         if (isEntryPoint)
@@ -326,23 +328,23 @@ IMPLEMENT_VISIT_PROC(UniformBufferDecl)
 
 IMPLEMENT_VISIT_PROC(VarDeclStmnt)
 {
-    Visit(ast->varType);
+    Visit(ast->typeSpecifier);
     Visit(ast->varDecls);
 
     /* Is the 'snorm' or 'unorm' type modifier specified? */
     if (ast->HasAnyTypeModifierOf({ TypeModifier::SNorm, TypeModifier::UNorm }))
     {
         /* Is this a floating-point type? */
-        auto baseTypeDen = ast->varType->typeDenoter->As<BaseTypeDenoter>();
+        auto baseTypeDen = ast->typeSpecifier->typeDenoter->As<BaseTypeDenoter>();
         if (!baseTypeDen || !IsRealType(baseTypeDen->dataType))
-            Error("'snorm' and 'unorm' type modifiers can only be used for floating-point types", ast->varType.get());
+            Error("'snorm' and 'unorm' type modifiers can only be used for floating-point types", ast->typeSpecifier.get());
     }
 
     #if 0
     /* Decorate variable type */
     if (InsideEntryPoint() && ast->varDecls.empty())
     {
-        if (auto symbol = ast->varType->symbolRef)
+        if (auto symbol = ast->typeSpecifier->symbolRef)
         {
             if (auto structDecl = symbol->As<StructDecl>())
             {
@@ -857,9 +859,9 @@ void HLSLAnalyzer::AnalyzeEntryPoint(FunctionDecl* funcDecl)
         /* Add all parameter structures to entry point */
         for (auto& param : funcDecl->parameters)
         {
-            if (auto varType = param->varType->GetTypeDenoter()->Get())
+            if (auto typeSpecifier = param->typeSpecifier->GetTypeDenoter()->Get())
             {
-                if (auto structTypeDen = varType->As<StructTypeDenoter>())
+                if (auto structTypeDen = typeSpecifier->As<StructTypeDenoter>())
                 {
                     if (auto structDecl = structTypeDen->structDeclRef)
                         funcDecl->paramStructs.push_back({ param->varDecls.front().get(), structDecl });
@@ -1572,6 +1574,16 @@ void HLSLAnalyzer::AnalyzeArrayDimensionList(const std::vector<ArrayDimensionPtr
         if (dim->HasDynamicSize())
             Error("secondary array dimensions must be explicit", dim, HLSLErr::ERR_ARRAY_IMPLICIT_ORDER);
     }
+}
+
+void HLSLAnalyzer::AnalyzeParameter(VarDeclStmnt* param)
+{
+    /* Default visitor for parameter */
+    Visit(param);
+
+    /* Check for structure definition */
+    if (auto structDecl = param->typeSpecifier->structDecl.get())
+        Error("structure '" + structDecl->ToString() + "' can not be defined in a parameter type", param);
 }
 
 

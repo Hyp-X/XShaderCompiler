@@ -104,11 +104,11 @@ bool HLSLParser::IsVarDeclModifier() const
     return (Is(Tokens::InputModifier) || Is(Tokens::InterpModifier) || Is(Tokens::TypeModifier) || Is(Tokens::StorageClass));
 }
 
-TypeNameExprPtr HLSLParser::MakeToTypeNameIfLhsOfCastExpr(const ExprPtr& expr)
+TypeSpecifierPtr HLSLParser::MakeTypeSpecifierIfLhsOfCastExpr(const ExprPtr& expr)
 {
-    /* Type name expression (float, int3 etc.) is always allowed for a cast expression */
-    if (expr->Type() == AST::Types::TypeNameExpr)
-        return std::static_pointer_cast<TypeNameExpr>(expr);
+    /* Type specifier expression (float, int3 etc.) is always allowed for a cast expression */
+    if (auto typeSpecifierExpr = expr->As<TypeSpecifierExpr>())
+        return typeSpecifierExpr->typeSpecifier;
 
     /* Is this a variable identifier? */
     if (auto varAccessExpr = expr->As<VarAccessExpr>())
@@ -116,10 +116,8 @@ TypeNameExprPtr HLSLParser::MakeToTypeNameIfLhsOfCastExpr(const ExprPtr& expr)
         /* Check if the identifier refers to a type name */
         if (!varAccessExpr->varIdent->next && IsRegisteredTypeName(varAccessExpr->varIdent->ident))
         {
-            /* Convert the variable access into a type name expression */
-            auto typeExpr = Make<TypeNameExpr>();
-            typeExpr->typeName = ASTFactory::MakeTypeName(std::make_shared<AliasTypeDenoter>(varAccessExpr->varIdent->ident));
-            return typeExpr;
+            /* Convert the variable access into a type specifier */
+            return ASTFactory::MakeTypeSpecifier(std::make_shared<AliasTypeDenoter>(varAccessExpr->varIdent->ident));
         }
     }
 
@@ -229,10 +227,11 @@ bool HLSLParser::IsRegisteredTypeName(const std::string& ident) const
     return typeNameSymbolTable_.Fetch(ident);
 }
 
-AliasDeclStmntPtr HLSLParser::MakeAndRegisterAliasDeclStmnt(const DataType dataType, const std::string& ident)
+AliasDeclStmntPtr HLSLParser::MakeAndRegisterBuildinAlias(const DataType dataType, const std::string& ident)
 {
     auto ast = ASTFactory::MakeBaseTypeAlias(dataType, ident);
     RegisterTypeName(ident);
+    ast->flags << AST::isBuildIn;
     return ast;
 }
 
@@ -253,7 +252,7 @@ void HLSLParser::GeneratePreDefinedTypeAliases(Program& ast)
     for (const auto& type : preDefinedTypes)
     {
         ast.globalStmnts.push_back(
-            MakeAndRegisterAliasDeclStmnt(type.first, type.second)
+            MakeAndRegisterBuildinAlias(type.first, type.second)
         );
     }
 }
@@ -363,7 +362,7 @@ VarDeclStmntPtr HLSLParser::ParseParameter()
     while (IsVarDeclModifier() || Is(Tokens::PrimitiveType))
         ParseVarDeclStmntModifiers(ast.get(), true);
 
-    ast->varType = ParseTypeName();
+    ast->typeSpecifier = ParseTypeSpecifier();
     ast->varDecls.push_back(ParseVarDecl(ast.get()));
 
     /* Mark with 'parameter' flag */
@@ -604,9 +603,9 @@ VarIdentPtr HLSLParser::ParseVarIdent()
     return UpdateSourceArea(ast);
 }
 
-TypeNamePtr HLSLParser::ParseTypeName(bool parseVoidType)
+TypeSpecifierPtr HLSLParser::ParseTypeSpecifier(bool parseVoidType)
 {
-    auto ast = Make<TypeName>();
+    auto ast = Make<TypeSpecifier>();
 
     /* Parse variable type denoter with optional struct declaration */
     ast->typeDenoter = ParseTypeDenoterWithStructDeclOpt(ast->structDecl);
@@ -789,19 +788,19 @@ StmntPtr HLSLParser::ParseGlobalStmnt()
         case Tokens::Inline:
             return ParseFunctionDecl();
         default:
-            return ParseGlobalStmntWithTypeName();
+            return ParseGlobalStmntWithTypeSpecifier();
     }
 }
 
-StmntPtr HLSLParser::ParseGlobalStmntWithTypeName()
+StmntPtr HLSLParser::ParseGlobalStmntWithTypeSpecifier()
 {
-    auto typeName = ParseTypeName();
+    auto typeSpecifier = ParseTypeSpecifier();
 
-    if (typeName->structDecl && Is(Tokens::Semicolon))
+    if (typeSpecifier->structDecl && Is(Tokens::Semicolon))
     {
         auto ast = Make<StructDeclStmnt>();
 
-        ast->structDecl = typeName->structDecl;
+        ast->structDecl = typeSpecifier->structDecl;
         Semi();
 
         return ast;
@@ -812,19 +811,19 @@ StmntPtr HLSLParser::ParseGlobalStmntWithTypeName()
     if (Is(Tokens::LBracket))
     {
         /* Parse function declaration statement */
-        return ParseFunctionDecl(typeName, identTkn);
+        return ParseFunctionDecl(typeSpecifier, identTkn);
     }
     else
     {
         /* Parse variable declaration statement */
         auto ast = Make<VarDeclStmnt>();
 
-        ast->varType    = typeName;
-        ast->varDecls   = ParseVarDeclList(ast.get(), identTkn);
+        ast->typeSpecifier  = typeSpecifier;
+        ast->varDecls       = ParseVarDeclList(ast.get(), identTkn);
 
         Semi();
 
-        return UpdateSourceArea(ast, ast->varType.get());
+        return UpdateSourceArea(ast, ast->typeSpecifier.get());
     }
 }
 
@@ -837,7 +836,7 @@ StmntPtr HLSLParser::ParseGlobalStmntWithSamplerTypeDenoter()
     if (Is(Tokens::LBracket))
     {
         /* Make variable type from type denoter, then parse function declaration */
-        return ParseFunctionDecl(ASTFactory::MakeTypeName(typeDenoter), identTkn);
+        return ParseFunctionDecl(ASTFactory::MakeTypeSpecifier(typeDenoter), identTkn);
     }
     else
     {
@@ -855,7 +854,7 @@ StmntPtr HLSLParser::ParseGlobalStmntWithBufferTypeDenoter()
     if (Is(Tokens::LBracket))
     {
         /* Make variable type from type denoter, then parse function declaration */
-        return ParseFunctionDecl(ASTFactory::MakeTypeName(typeDenoter), identTkn);
+        return ParseFunctionDecl(ASTFactory::MakeTypeSpecifier(typeDenoter), identTkn);
     }
     else
     {
@@ -864,7 +863,7 @@ StmntPtr HLSLParser::ParseGlobalStmntWithBufferTypeDenoter()
     }
 }
 
-FunctionDeclPtr HLSLParser::ParseFunctionDecl(const TypeNamePtr& returnType, const TokenPtr& identTkn)
+FunctionDeclPtr HLSLParser::ParseFunctionDecl(const TypeSpecifierPtr& returnType, const TokenPtr& identTkn)
 {
     auto ast = Make<FunctionDecl>();
 
@@ -883,7 +882,7 @@ FunctionDeclPtr HLSLParser::ParseFunctionDecl(const TypeNamePtr& returnType, con
             AcceptIt();
 
         /* Parse return type */
-        ast->returnType = ParseTypeName(true);
+        ast->returnType = ParseTypeSpecifier(true);
     }
 
     /* Parse function identifier */
@@ -993,15 +992,15 @@ VarDeclStmntPtr HLSLParser::ParseVarDeclStmnt()
         else if (Is(Tokens::Ident) || IsDataType())
         {
             /* Parse type denoter */
-            ast->varType = Make<TypeName>();
-            ast->varType->typeDenoter = ParseTypeDenoter();
-            UpdateSourceArea(ast->varType);
+            ast->typeSpecifier = Make<TypeSpecifier>();
+            ast->typeSpecifier->typeDenoter = ParseTypeDenoter();
+            UpdateSourceArea(ast->typeSpecifier);
             break;
         }
         else if (Is(Tokens::Struct))
         {
             /* Parse structure variable type */
-            ast->varType = ASTFactory::MakeTypeName(ParseStructDecl());
+            ast->typeSpecifier = ASTFactory::MakeTypeSpecifier(ParseStructDecl());
             break;
         }
         else
@@ -1124,7 +1123,7 @@ StmntPtr HLSLParser::ParseStmntWithStructDecl()
         /* Parse variable declaration with previous structure type */
         auto varDeclStmnt = Make<VarDeclStmnt>();
 
-        varDeclStmnt->varType = ASTFactory::MakeTypeName(ast->structDecl);
+        varDeclStmnt->typeSpecifier = ASTFactory::MakeTypeSpecifier(ast->structDecl);
         
         /* Parse variable declarations */
         varDeclStmnt->varDecls = ParseVarDeclList(varDeclStmnt.get());
@@ -1177,15 +1176,15 @@ StmntPtr HLSLParser::ParseStmntWithVarIdent()
         /* Convert variable identifier to alias type denoter */
         auto ast = Make<VarDeclStmnt>();
 
-        ast->varType = Make<TypeName>();
-        ast->varType->typeDenoter = ParseAliasTypeDenoter(varIdent->ident);
-        UpdateSourceArea(ast->varType, varIdent.get());
+        ast->typeSpecifier = Make<TypeSpecifier>();
+        ast->typeSpecifier->typeDenoter = ParseAliasTypeDenoter(varIdent->ident);
+        UpdateSourceArea(ast->typeSpecifier, varIdent.get());
 
         if (!varIdent->arrayIndices.empty())
         {
             /* Convert variable identifier to array of alias type denoter */
-            ast->varType->typeDenoter = MakeShared<ArrayTypeDenoter>(
-                ast->varType->typeDenoter,
+            ast->typeSpecifier->typeDenoter = MakeShared<ArrayTypeDenoter>(
+                ast->typeSpecifier->typeDenoter,
                 ASTFactory::ConvertExprListToArrayDimensionList(varIdent->arrayIndices)
             );
         }
@@ -1426,7 +1425,7 @@ ExprPtr HLSLParser::ParsePrimaryExpr()
     if (IsLiteral())
         return ParseLiteralOrSuffixExpr();
     if (IsDataType() || Is(Tokens::Struct))
-        return ParseTypeNameOrFunctionCallExpr();
+        return ParseTypeSpecifierOrFunctionCallExpr();
     if (Is(Tokens::UnaryOp) || IsArithmeticUnaryExpr())
         return ParseUnaryExpr();
     if (Is(Tokens::LBracket))
@@ -1468,7 +1467,7 @@ LiteralExprPtr HLSLParser::ParseLiteralExpr()
     return UpdateSourceArea(ast);
 }
 
-ExprPtr HLSLParser::ParseTypeNameOrFunctionCallExpr()
+ExprPtr HLSLParser::ParseTypeSpecifierOrFunctionCallExpr()
 {
     /* Parse type denoter with optional structure delcaration */
     if (!IsDataType() && !Is(Tokens::Struct))
@@ -1485,12 +1484,14 @@ ExprPtr HLSLParser::ParseTypeNameOrFunctionCallExpr()
     }
 
     /* Return type name expression */
-    auto ast = Make<TypeNameExpr>();
+    auto ast = Make<TypeSpecifierExpr>();
+    {
+        ast->typeSpecifier               = ASTFactory::MakeTypeSpecifier(typeDenoter);
+        ast->typeSpecifier->structDecl   = structDecl;
+    }
+    UpdateSourceArea(ast->typeSpecifier, structDecl.get());
 
-    ast->typeName               = ASTFactory::MakeTypeName(typeDenoter);
-    ast->typeName->structDecl   = structDecl;
-
-    return ast;
+    return UpdateSourceArea(ast, structDecl.get());
 }
 
 UnaryExprPtr HLSLParser::ParseUnaryExpr()
@@ -1537,14 +1538,14 @@ ExprPtr HLSLParser::ParseBracketOrCastExpr()
     Parse cast expression if the expression inside the bracket is the left-hand-side of a cast expression,
     which is checked by the symbol table, because HLSL cast expressions are not context free.
     */
-    if (auto typeNameExpr = MakeToTypeNameIfLhsOfCastExpr(expr))
+    if (auto typeSpecifier = MakeTypeSpecifierIfLhsOfCastExpr(expr))
     {
         /* Return cast expression */
         auto ast = Make<CastExpr>();
         
-        ast->area       = area;
-        ast->typeExpr   = typeNameExpr;
-        ast->expr       = ParsePrimaryExpr();
+        ast->area           = area;
+        ast->typeSpecifier  = typeSpecifier;
+        ast->expr           = ParsePrimaryExpr();
 
         return UpdateSourceArea(ast);
     }
